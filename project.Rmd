@@ -1,0 +1,91 @@
+---
+title: "Project"
+author: "Atharva Jadhav | Harshali Gaikwad | Sriujan Harihar"
+date: "2025-04-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+```{r}
+library("tidyverse")
+library(tseries)    # For stationarity tests
+library(forecast)   # Forecasting functions (includes Arima, auto.arima, forecast)
+```
+
+```{r}
+data = read.csv("pollution_us_2000_2016.csv")
+```
+```{r}
+data_df = data.frame(data)
+```
+```{r}
+na_counts <- colSums(is.na(data_df)) # Find the number of NA values in each column
+print(na_counts)
+```
+```{r}
+cleaned_df <- data.frame(lapply(data_df, function(x) {
+  if (is.numeric(x)) {
+    x[is.na(x)] <- mean(x, na.rm = TRUE)
+  }
+  return(x)
+}))
+```
+
+
+```{r}
+na_counts <- colSums(is.na(cleaned_df))
+print(na_counts)
+```
+
+```{r}
+head(cleaned_df)
+```
+```{r}
+cleaned_df$Date.Local <- as.POSIXct(cleaned_df$Date.Local, format = "%Y-%m-%d")
+cleaned_df <- cleaned_df %>%
+  mutate(YearMonth = floor_date(Date.Local, "month"))
+head(cleaned_df)
+```
+```{r}
+monthly_data <- cleaned_df %>% 
+  group_by(YearMonth) %>%
+  summarise(mean_CO = mean(CO.AQI, na.rm = TRUE))
+head(monthly_data)
+```
+
+**### a. Plot the Time Series**
+
+```{r}
+ggplot(monthly_data, aes(x = YearMonth, y = mean_CO)) +
+  geom_line(color = "blue") +
+  labs(title = "Monthly Average CO Values", x = "Date", y = "Mean CO") +
+  theme_minimal()
+
+```
+```{r}
+start_year <- year(min(monthly_data$YearMonth))
+start_month <- month(min(monthly_data$YearMonth))
+ts_CO <- ts(monthly_data$mean_CO, start = c(start_year, start_month), frequency = 12)
+
+# Plot the time series
+plot(ts_CO, main = "Time Series of Monthly Mean CO", ylab = "Mean CO", xlab = "Time")
+
+# Perform the Augmented Dickey-Fuller Test for stationarity.
+adf_test <- adf.test(ts_CO, alternative = "stationary")
+print(adf_test)
+
+```
+**### 4. SARIMA Model Developement**
+
+```{r}
+# Plot ACF and PACF for the differenced log series
+par(mfrow=c(1,2))
+Acf(ts_CO, main = "ACF of Differenced Log Series")
+Pacf(ts_CO, main = "PACF of Differenced Log Series")
+par(mfrow=c(1,1))
+
+```
+
